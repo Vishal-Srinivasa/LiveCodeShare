@@ -1,0 +1,547 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveCodeShare</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+    body,
+html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #000;
+    color: #fff;
+}
+
+button {
+    background-color: #2bb0e8;
+    border-radius: 10px;
+}
+
+.tab {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    background-color: #000;
+}
+
+.flex-con {
+    display: flex;
+    flex-direction: column;
+    width: 25%;
+    padding: 10px;
+    border-right: 1px solid #ccc;
+    flex-grow: 1;
+    background-color: #000;
+}
+.flex-c {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height:100%;
+            padding: 10px;
+            flex-grow: 1;
+            background-color: #000;
+        }
+
+.flex-con1 {
+    display: flex;
+    flex-direction: column;
+    width: 15%;
+    padding: 10px;
+    border-right: 1px solid #ccc;
+    background-color: #000;
+}
+
+#file_content {
+    flex: 1;
+    margin-bottom: 10px;
+    background-color: #000;
+    color: rgb(18, 189, 220);
+}
+
+#terminal {
+    border: 1px solid #ccc;
+    padding: 10px;
+    overflow-y: scroll;
+    background-color: #000;
+    color: #fff;
+    font-family: monospace;
+    white-space: pre-wrap;
+    flex-grow: 1;
+    margin-top:0.5%;
+}
+
+#users {
+    height: 50%;
+    overflow-y: auto;
+}
+
+.user-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.user-list h2 {
+    margin: 0;
+}
+
+.user-list ul {
+    list-style: none;
+    padding: 0;
+}
+
+.user-list li {
+    padding: 5px 0;
+}
+
+.flex-con button,
+.flex-con input {
+    margin-bottom: 5px;
+    background-color: rgb(64, 190, 240);
+}
+.prompt {
+            color: #00ff00; /* Green color for prompt */
+        }
+
+        .command {
+            color: #ff00ff; /* Purple color for command */
+        }
+</style>
+</head>
+
+<body>
+    <div id="fileManagerContainer" style="height:100%"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.62.0/mode/meta.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.15.0/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.1/socket.io.js"></script>
+
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const socket = io.connect('http://10.30.201.53:1234');
+
+        socket.on('connect', () => {
+            console.log("Connected to the server")
+        });
+
+
+        const un = localStorage.getItem('user_name');
+        const rn = localStorage.getItem('room_name');
+        socket.emit('main_page', un, rn);
+
+        const FolderStructure = ({ directory, handleCreateFolder, handleCreateFile, deleteFile, renameFile, deleteFolder, renameFolder, openFile}) => {
+            const renderFolder = (folder, path) => {
+                return Object.keys(folder).map(name => {
+                    const itemPath = path ? `${path}/${name}` : name;
+                    const itemName = itemPath.split('\\').pop();
+                    if (typeof folder[name] === 'object') {
+                        return (
+                            <li key={itemPath}>
+                                <div>
+                                    <span>{itemName}</span>
+                                    <button onClick={() => handleCreateFolder(itemPath)}>New Folder</button>
+                                    <button onClick={() => handleCreateFile(itemPath)}>New File</button>
+                                    <button onClick={() => deleteFolder(itemPath, itemName)}>Delete</button>
+                                    <button onClick={() => renameFolder(itemPath, itemName)}>Rename</button>
+                                </div>
+                                <ul>{renderFolder(folder[name], itemPath)}</ul>
+                            </li>
+                        );
+                    } else {
+                        return (
+                            <li key={itemPath}>
+                                <div>
+                                    <span>{itemName}</span>
+                                    <button onClick={() => openFile(itemPath)}>Open</button>
+                                    <button onClick={() => deleteFile(itemPath, itemName)}>Delete</button>
+                                    <button onClick={() => renameFile(itemPath, itemName)}>Rename</button>
+                                </div>
+                            </li>
+                        );
+                    }
+                });
+            };
+
+            return <ul>{renderFolder(directory, '')}</ul>;
+        };
+
+
+        const FileManager = () => {
+            const [currentFolder, setCurrentFolder] = useState('');
+            const [roomName, setRoomName] = useState('');
+            const [userName, setUserName] = useState('');
+            const [fileContent, setFileContent] = useState('');
+            const [folderContents, setFolderContents] = useState([]);
+            const [commandInput, setCommandInput] = useState('');
+            const [fileExtension, setFileExtension] = useState('py');
+            const [activeUsersList, setActiveUsersList] = useState([] || []);
+            const [roomUsers, setRoomUsers] = useState([] || []);
+            const [roomDirectory, setRoomDirectory] = useState({});
+            const [clientId, setClientId] = useState(null);
+
+            useEffect(() => {
+                const receiveClientIdHandler = ({ client_id }) => {
+                    setClientId(client_id);
+                };
+
+                socket.on('receive_client_id', receiveClientIdHandler);
+
+                return () => {
+                    socket.off('receive_client_id', receiveClientIdHandler);
+                };
+            }, []);
+
+    const [roomData, setRoomData] = useState({
+        room_name: '',
+        user_name: '',
+        room_users: [],
+        active_users_list: [],
+        room_directory: {}
+    });
+
+    useEffect(() => {
+
+        socket.on('receive_main_page', data => {
+            setRoomData(data);
+        });
+
+        socket.on('create_folder_status', data => {
+            console.log(data);
+            if (data.status === 'success') {
+                alert('Folder created successfully');
+                updateFolderContents();
+            } else {
+                alert('Failed to create folder');
+            }
+        });
+
+        socket.on('create_file_status', data => {
+        if (data.status === 'success') {
+            alert('File created successfully');
+            updateFolderContents();
+        } else {
+            alert('Failed to create file');
+        }
+    });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    useEffect(() => {
+    const editor = CodeMirror.fromTextArea(document.getElementById("file_content"), {
+        lineNumbers: true,
+        mode: getCodeMirrorMode(),
+        theme: "dracula"
+    });
+    editor.setValue(fileContent);
+
+    editor.on('changes', (instance, changes) => {
+        changes.forEach(change => {
+            const { from, to, text, removed } = change;
+            socket.emit('editor_change', { from, to, text, removed, file_path: '' });
+        });
+    });
+
+    socket.on('send_changed_code', ({ code, file_path }) => {
+        if (file_path === '') {
+            editor.replaceRange(code.text.join('\n'), code.from, code.to);
+        }
+    });
+
+    return () => {
+        editor.toTextArea();
+    };
+}, [fileContent, fileExtension]);
+
+            useEffect(() => {
+
+        const handleChangedCode = (code) => {
+            setFileContent(code);
+        };
+
+        const updateActiveUsersList = (activeUsers) => {
+    setActiveUsersList(activeUsers);
+        };
+
+        const updateRoomDirectory = (roomDir) => {
+            setRoomDirectory(roomDir);
+        };
+console.log(roomDirectory)
+        socket.on('send_changed_code', handleChangedCode);
+        socket.on('active_users_list', updateActiveUsersList);
+        socket.on('room_directory', updateRoomDirectory);
+console.log(roomDirectory)
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+            const getCodeMirrorMode = () => {
+    const extension = fileExtension.toLowerCase();
+    switch (extension) {
+        case 'py':
+            return 'python';
+        case 'js':
+            return 'javascript';
+        case 'c':
+        case 'cpp':
+            return 'clike';
+        default:
+            return 'text/plain';
+    }
+};
+
+const openFile = (path) => {
+    socket.emit('open_file', path);
+    socket.on('open_file_content', ({ status, content }) => {
+        setFileContent(content);
+    })
+};
+
+            const renameFile = (path, name) => {
+                const newName = prompt('Enter new file name:', name);
+                if (newName !== null && newName.trim() !== "") {
+                    socket.emit('rename_file', {old_file_path: path, new_file_name: newName});
+
+                    socket.on(`rename_file_status`, function(data) {
+                        if (data.status === 'success') {
+                            alert('File renamed successfully.');
+                            updateFolderContents();
+                        } else {
+                            alert(`Failed to rename file. Please try again.`);
+                        }
+                    });
+                }
+            };
+
+            const renameFolder = (path, name) => {
+                const newName = prompt(`Enter new folder name:`, name);
+                if (newName !== null && newName.trim() !== "") {
+                    socket.emit(rename_folder, {old_folder_path: path, new_folder_name: newName});
+
+                    socket.on(`rename_folder_status`, function(data) {
+                        if (data.status === 'success') {
+                            alert(`Folder renamed successfully.`);
+                            updateFolderContents();
+                        } else {
+                            alert(`Failed to rename folder. Please try again.`);
+                        }
+                    });
+                }
+            };
+
+            const deleteFile = (path, name) => {
+                const confirmMsg = `Are you sure you want to delete this file?`;
+                if (window.confirm(confirmMsg)) {
+                    socket.emit('delete_file', { file_path: path , file_name: name});
+                    socket.on('delete_folder_status', function(response)  {
+                        if (response.status === 'success') {
+                            alert(`Successfully deleted file`);
+                            updateFolderContents();
+                        } else {
+                            alert(`Failed to delete file`);
+                        }
+                    });
+                }
+            };
+            const deleteFolder = (path, name) => {
+                const confirmMsg = `Are you sure you want to delete this folder?`;
+                if (window.confirm(confirmMsg)) {
+                    socket.emit(delete_folder, { folder_path: path , folder_name: name});
+                    socket.on('delete_folder_status', function(response)  {
+                        if (response.status === 'success') {
+                            alert(`Successfully deleted folder`);
+                            updateFolderContents();
+                        } else {
+                            alert(`Failed to delete folder`);
+                        }
+                    });
+                }
+            };
+
+            const receiveChangedCode = (code) => {
+    socket.emit('receive_changed_code', code);
+};
+
+const updateFolderContents = () => {
+    console.log("");
+};
+
+            const handleCreateFolder = (path) => {
+                const folderName = prompt("Enter folder name:");
+                if (folderName != null && folderName.trim() !== "") {
+                    socket.emit('create_folder', path, folderName);
+                }
+            };
+
+            const handleCreateFile = (path) => {
+                const fileName = prompt("Enter file name:");
+                if (fileName != null && fileName.trim() !== "") {
+                    socket.emit('create_file', path, fileName);
+                }
+            };
+
+            socket.removeAllListeners('execute_output');
+            socket.on('execute_output', response => {
+                    const output = response.output;
+                    appendToTerminal(output);
+                    scrollTerminal();
+                });
+
+            const executeCommand = () => {
+                const command = commandInput;
+                const userInput = document.getElementById('input').value;
+                const inputs = userInput.split('\n');
+                appendToTerminal('<span class="prompt">&#62; </span><span class="command">' + command + '</span>');
+
+                socket.emit('execute', command, inputs);
+
+                setCommandInput('');
+                document.getElementById('input').value = '';
+            };
+
+            const appendToTerminal = (content) => {
+                const terminal = document.getElementById('terminal');
+                terminal.innerHTML += '<div>' + content + '</div>';
+            };
+
+            const scrollTerminal = () => {
+                const terminal = document.getElementById('terminal');
+                terminal.scrollTop = terminal.scrollHeight;
+            };
+
+            const handleClearTerminal = () => {
+                const terminal = document.getElementById('terminal');
+                terminal.innerHTML = '';
+            };
+
+            const handleBack = () => {
+                fetch(`/back?client_id=${clientId}`)
+                    .then(response => {
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            };
+
+
+            const handleInputChange = (event) => {
+                setCommandInput(event.target.value);
+            };
+
+            const handleInputKeyPress = (event) => {
+                if (event.key === 'Enter') {
+                    executeCommand();
+                }
+            };
+
+            const getFileExtension = (fileName) => {
+                return fileName.split('.').pop();
+            };
+
+            const handleFileSelection = (fileName) => {
+                const extension = getFileExtension(fileName);
+                setFileExtension(extension);
+            };
+
+            const getFileIconClass = (extension) => {
+                switch (extension) {
+                    case 'py':
+                        return 'fas fa-file-code';
+                    case 'js':
+                        return 'fas fa-file-code';
+                    case 'c':
+                    case 'cpp':
+                        return 'fas fa-file-code';
+                    default:
+                        return 'fas fa-file';
+                }
+            };
+
+            return (
+            <div className="flex-c">
+            <div><button id="back_button" onClick={handleBack}>Back</button></div>
+    <div className="tab">
+        <div className="flex-con1">
+            <button onClick = {()=>handleCreateFolder("")}>Create folder</button>
+            <button onClick = {()=>handleCreateFile("")}>Create file</button>
+            <div id = 'folderhierarchy'>
+                <FolderStructure
+                            directory={roomData.room_directory}
+                            handleCreateFolder={handleCreateFolder}
+                            handleCreateFile={handleCreateFile}
+                            renameFile={renameFile}
+                            deleteFile={deleteFile}
+                            renameFolder={renameFolder}
+                            deleteFolder={deleteFolder}
+                            openFile={openFile}
+                        />
+            </div>
+            <div id="users">
+    <div className="user-list">
+        <h2>Active Users</h2>
+        <ul>
+            {activeUsersList.map(user => (
+                <li key={user}>{user}</li>
+            ))}
+        </ul>
+    </div>
+    <div className="user-list">
+        <h2>Inactive Users</h2>
+        <ul>
+            {roomUsers.filter(user => !activeUsersList.some(activeUser => activeUser === user)).map(inactiveUser => (
+                <li key={inactiveUser}>{inactiveUser}</li>
+            ))}
+        </ul>
+    </div>
+</div>
+
+        </div>
+        <div className="flex-con" style={{marginRight:"1%"}}>
+            <textarea id="file_content" value={fileContent} onChange={(e) => setFileContent(e.target.value)}></textarea>
+            <div>
+                <input type="text" id="command_input" value={commandInput} onChange={handleInputChange} onKeyPress={handleInputKeyPress} style={{width:"93%",marginTop:"1%"}}/>
+                <button onClick={executeCommand}>Execute</button>
+                <button onClick={handleClearTerminal}>Clear</button>
+            </div>
+            <div>
+                <textarea id="input" style={{width:"100%"}}></textarea>
+            </div>
+            <div id="terminal"></div>
+        </div>
+    </div></div>
+);
+
+
+        }
+
+        ReactDOM.render(
+            <React.StrictMode>
+                <FileManager />
+            </React.StrictMode>,
+            document.getElementById('fileManagerContainer')
+        );
+
+    </script>
+
+</body>
+
+</html>

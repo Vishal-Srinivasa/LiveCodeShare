@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.1/socket.io.js"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 450px;
+            height: 400px;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-btns {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .tab-btns button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: #ffffff;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        .tab-btns button.active {
+            background-color: #0056b3;
+        }
+
+        .login-container,
+        .signup-container {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .form-group button {
+            color: #ffffff;
+            background-color: #007bff;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const socket = io.connect('http://10.30.201.53:1234');
+
+        socket.on('connect', function () {
+                    console.log('Connected to the server');
+                });
+
+        function App() {
+            const [clientId, setClientId] = useState(null);
+            const [activeTab, setActiveTab] = useState('login');
+
+            const switchTab = (tabName) => {
+                setActiveTab(tabName);
+            };
+
+            useEffect(() => {
+                console.log("Inside useEffect");
+
+                const receiveClientIdHandler = ({ client_id }) => {
+                    console.log("Received client ID:", client_id);
+                    setClientId(client_id);
+                    console.log("Updated client ID:", client_id);
+                };
+
+                socket.on('receive_client_id', receiveClientIdHandler);
+
+                return () => {
+                    console.log("Cleaning up useEffect");
+                    socket.off('receive_client_id', receiveClientIdHandler);
+                };
+            }, []);
+          
+            useEffect(() => {
+                const element1 = document.getElementById('loginForm')
+                if (element1){
+                    element1.addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        const username = document.getElementById('username1').value;
+                        localStorage.setItem('user_name', username);
+                        this.submit();
+                    });
+                }
+            }, []);
+
+            useEffect(() => {
+                const element2 = document.getElementById('signupForm')
+                if (element2){
+                    element2.addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        const username = document.getElementById('username2').value;
+                        localStorage.setItem('user_name', username);
+                        this.submit();
+                    });
+                }
+            }, []);
+
+            return (
+            <div class="container">
+                <div class="tab-btns">
+                    <button className={activeTab === 'login' ? 'active' : ''} onClick={() => switchTab('login')}>Login</button>
+                    <button className={activeTab === 'signup' ? 'active' : ''} onClick={() => switchTab('signup')}>Sign Up</button>
+                </div>
+
+                {activeTab === 'login' ? (
+                    <div className="tab-content" id="loginTab">
+                        <h2>User Login</h2>
+                        <form id="loginForm" action="/login" method="POST">
+                            <div class="form-group">
+                                <label for="username1">Username:</label>
+                                <input type="text" id="username1" name="user_name" placeholder="Enter your username" />
+                            </div>
+                            <div class="form-group">
+                                <label for="password1">Password:</label>
+                                <input type="password" id="password1" name="user_password" placeholder="Enter your password" />
+                            </div>
+                            <div class="form-group">
+                                <button type="submit">Login</button>
+                            </div>
+                        </form>
+                    </div>
+                ) : null}
+
+                {activeTab === 'signup' ? (
+                    <div className="tab-content" id="signupTab">
+                        <h2>Sign Up</h2>
+                        <form id="signupForm" action="/signup" method="POST">
+                            <div class="form-group">
+                                <label for="username2">Username:</label>
+                                <input type="text" id="username2" name="user_name" placeholder="Enter your username" />
+                            </div>
+                            <div class="form-group">
+                                <label for="password2">Password:</label>
+                                <input type="password" id="password2" name="user_password" placeholder="Enter your password" />
+                            </div>
+                            <div class="form-group">
+                                <button type="submit">Sign Up</button>
+                            </div>
+                        </form>
+                    </div>
+                ) : null}
+            </div>
+        );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    
+</body>
+
+</html>

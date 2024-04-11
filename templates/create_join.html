@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.1/socket.io.js"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>Create Join</title>
+    <style>
+    body{
+        background-color: #f2f2f2;
+    }
+        .con {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 95vh;
+            margin: 0;
+            background-color: #f2f2f2;
+        }
+
+        .container {
+            width: 80%;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .login-container,
+        .room-list {
+            flex: 1;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-container {
+            margin-right: 20px;
+        }
+
+        .room-list {
+            margin-left: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group button {
+            width: calc(100% - 20px);
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .form-group button {
+            color: #ffffff;
+            background-color: #007bff;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+
+        .room-list ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .room-list ul li {
+            margin-bottom: 10px;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .room-list ul li a {
+            text-decoration: none;
+            color: #333;
+        }
+
+        .room-list ul li a:hover {
+            background-color: #d0d0d0;
+        }
+
+        .active {
+            background-color: #0056b3;
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #ffffff;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: #ffffff;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        } 
+        .userclass{
+            color: #007bff;
+            font-size: 20px;
+            text-align: right;
+            padding-right: 0.15%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id = "root"></div>
+
+
+
+    <script type = "text/babel">
+        const { useState, useEffect } = React;
+        const socket = io.connect('http://10.30.201.53:1234');
+
+        function App() {
+    const [activeTab, setActiveTab] = useState('join');
+    const [userRooms, setUserRooms] = useState([] || []);
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        socket.on('redirect', function(data) {
+        window.location.href = data.url;
+    });
+    })
+    
+    useEffect(() => {
+        const user_Name = localStorage.getItem('user_name');
+        setUserName(user_Name);
+        console.log("User Name: ", user_Name);
+        socket.emit('create_join_room', user_Name);
+
+    }, []);
+
+    useEffect(() => {
+                const element1 = document.getElementById('joinForm')
+                if (element1){
+                    element1.addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        const roomname = document.getElementById('joinRoomName').value;
+                        localStorage.setItem('room_name', roomname);
+                        this.submit();
+                    });
+                }
+            }, []);
+
+            useEffect(() => {
+                const element2 = document.getElementById('createForm')
+                if (element2){
+                    element2.addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        const username = document.getElementById('roomName').value;
+                        localStorage.setItem('room_name', roomname);
+                        this.submit();
+                    });
+                }
+            }, []);
+
+
+    useEffect(() => {
+    const createJoinRoomListener = ({ user_all_rooms }) => {
+    console.log("User All Rooms: ", user_all_rooms);
+    setUserRooms(user_all_rooms || []);
+};
+
+    socket.on('receive_join_room', createJoinRoomListener);
+
+    return () => {
+        socket.off('receive_join_room', createJoinRoomListener);
+    };
+}, []);
+
+
+    const switchTab = (tabName) => {
+        setActiveTab(tabName);
+    };
+
+    const directJoin = (roomName) => {
+        console.log('Direct join:', roomName);
+        localStorage.setItem('room_name', roomName);
+        socket.emit('direct_join', userName, roomName);
+    };
+
+    const logout = () => {
+        fetch(`/logout?user_name=${userName}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.href = '/';
+            } else {
+                console.error('Logout failed:', response.statusText);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    };
+
+    return (
+        <div>
+            <div className="userclass"> User : {userName}</div>
+            <button id="logoutBtn" className="tab-btn" onClick={() => logout()} style={{ marginLeft: '95%' }}>Logout</button>
+            <div class="con">
+                <div class="container">
+                    <div class="login-container">
+                        <div class="tab-btns">
+                            <button className={activeTab === 'join' ? 'active' : 'tab-btn'} onClick={() => switchTab('join')}>Join</button>
+                            <button className={activeTab === 'create' ? 'active' : 'tab-btn'} onClick={() => switchTab('create')}>Create</button>
+                        </div>
+                        {activeTab === 'join' ? (
+                            <div class="tab-content" id="joinTab">
+                                <h2>Join a room</h2>
+                                <form id="joinForm" action="/join" method="POST">
+                                    <input type="hidden" id="hidden_variable2" name="user_name" value={userName} />
+                                    <div class="form-group">
+                                        <label for="joinRoomName">Room Name:</label>
+                                        <input type="text" id="joinRoomName" name="room_name" placeholder="Enter room name to join" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="joinRoomPassword">Room Password:</label>
+                                        <input type="password" id="joinRoomPassword" name="room_password" placeholder="Enter room password" />
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit">Join</button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : null}
+
+                        {activeTab === 'create' ? (
+                            <div class="tab-content" id="createTab">
+                                <h2>Create a room</h2>
+                                <form id="createForm" action="/create" method="POST">
+                                    <input type="hidden" id="hidden_variable1" name="user_name" value={userName} />
+
+                                    <div class="form-group">
+                                        <label for="roomName">Room Name:</label>
+                                        <input type="text" id="roomName" name="room_name" placeholder="Enter room name" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="roomPassword">Room Password:</label>
+                                        <input type="password" id="roomPassword" name="room_password" placeholder="Enter room password" />
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit">Create</button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : null}
+                    </div>
+                    <div class="room-list">
+                        <h2>Rooms you have already joined</h2>
+                        <ul>
+                            {userRooms.map(room => (
+                                <li key={room} onClick={() => directJoin(room)}>{room}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+
+</body>
+</html> 
